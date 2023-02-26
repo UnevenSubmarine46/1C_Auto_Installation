@@ -1,0 +1,82 @@
+---
+# Плейбук для установки сервера 1с и postgres
+ - name: Playbook 1c installation
+   hosts: all
+   become: yes
+
+   vars:
+    version: server8.3.16.1814_linux.zip
+    version_postgres: postgresql_9.6.7_1.1C_amd64_deb.tar.bz2 
+
+   tasks:
+    
+    - name: Repositories update # Обновляем репозитории перед установкой
+      ansible.builtin.apt:
+       name: "*"
+       state: latest 
+   
+    - name: Сopying 1с to the target server # Копируем архив с 1с на целевой сервер
+      ansible.builtin.copy:
+       src: /home/nikita/ansible/1c_installation/1c_file/
+       dest: /home/1c
+
+    - name: Installing packages for Unarchive the 1c file
+      ansible.builtin.apt:
+        name:
+          -  unzip
+          -  tar
+        state: latest
+
+
+    - name: Unarchive the 1c file # Разархивируем 
+      unarchive:
+       src: /home/1c/{{ version }}
+       dest: /home/1c/
+       remote_src: yes
+
+    - name: Installing .deb packages # Устанавливаем пакеты
+      ansible.builtin.shell:
+       cmd:  "dpkg -i /home/1c/*.deb"    
+    
+    - name: Systemctl enable and start #Разрешаем автозапуск сервиса 1С и стартуем его
+      ansible.builtin.shell:
+       cmd: systemctl enable srv1cv83; systemctl start srv1cv83 
+        
+#==========Переходим к установке postgres==========
+    - name: add-apt-repository for libicu55  
+      ansible.builtin.shell:
+       cmd: add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"
+
+    
+    - name: Installing libicu55 
+      ansible.builtin.apt:
+       name:  libicu55 
+       state: latest
+   
+    - name: Сopying Postgres  to the target server # Копируем postgres на целевой сервер
+      ansible.builtin.copy:
+       src: /home/nikita/ansible/1c_installation/postgres_file/
+       dest: /home/postgres/
+       mode: 0777
+
+    -  name: Unarchive postgres file # Разархивируем
+       unarchive:
+         src: /home/postgres/{{ version_postgres }}
+         dest: /home/postgres/
+         remote_src: yes
+
+    - name: Installing .deb packages Postgres # Устанавливаем пакеты
+      ansible.builtin.shell:
+       cmd:  "dpkg -i /home/postgres/*/*.deb"
+
+   
+    - name: Change DB config # Меняем конфиг базы данных
+      ansible.builtin.shell:
+       cmd: cat /home/postgres/postgres.txt > /etc/postgresql/9.6/main/pg_hba.conf
+
+    - name: Postgresql restart
+      ansible.builtin.shell:
+       cmd: service postgresql restart
+   
+    - debug:
+       msg: "Установка завершена, проверьте службы" 
